@@ -165,12 +165,14 @@ class Game:
         if card.rank in ['J', 'Q', 'K', 'A']:
             self.royal_sequence = True
             self.cards_to_play = self.get_cards_for_royal(card.rank)
+            self.next_player()
             # print(f"{player.name} played a {card.rank}! Next player must play {self.cards_to_play} cards.")
         elif self.royal_sequence:
             self.cards_to_play -= 1
             if self.cards_to_play == 0:
                 self.royal_sequence = False
-                print("Royal sequence completed.")
+                # print("Royal sequence completed.")
+                
 
     
     def play_game(self):
