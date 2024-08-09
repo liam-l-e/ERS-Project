@@ -48,6 +48,7 @@ class Game:
         self.played_royal = None
         self.cards_to_play = 0
         self.total_cards = 52
+        self.pile_winner = None
 
     ## Rank and suit creation
     def create_deck(self):
@@ -74,11 +75,12 @@ class Game:
         if n == 1:
             print(f"Total cards in game: {total}")
         for player in self.players:
-            print(f"{player.name}: {len(player.main_hand)} in hand")
+            print(f"{player.name}: {len(player.main_hand)+len(player.won_cards)} in hand")
         print(f"Pile: {len(self.pile)}")
         assert total == 52, f"Card count mismatch! Expected {52}, found {total}"
 
     def play_round(self):
+        self.pile_winner = None
         while True:
             if not self.players:
                 return True
@@ -93,12 +95,16 @@ class Game:
                 if self.check_slap():
                     self.played_royal = None
                     self.cards_to_play = 0
+                    self.next_player()
                     return True  # Someone won the pile
                 
-                self.handle_played_royal(player, card)
+                if self.handle_played_royal(player,card):
+                    self.next_player()
+                    return True
                 
                 if self.played_royal==None:
                     self.next_player()
+
             else:
                 if not player.main_hand and not player.won_cards: # Out of game logic
                     print(f"{player.name} is out of the game!")
@@ -116,11 +122,14 @@ class Game:
             if self.played_royal!= None:
                 break
         
-        self.log_card_count("",0)
         return False
     
     def next_player(self):
-        self.current_player_index = (self.current_player_index + 1) % len(self.players)
+        if self.pile_winner:
+            index = self.players.index(self.pile_winner)
+            self.current_player_index = index
+        else:
+            self.current_player_index = (self.current_player_index + 1) % len(self.players)
     
     def check_slap(self):
         if self.is_slappable():
@@ -137,6 +146,7 @@ class Game:
                 winner.main_hand.extend(self.pile)
                 print(f"{winner.name} slaps and wins the pile in by {self.is_slappable()} {_:.3f} seconds!")
                 self.pile = []
+                self.pile_winner = winner
                 return True
 
         return False
@@ -180,11 +190,17 @@ class Game:
                 self.played_royal.won_cards.extend(self.pile)
                 self.pile = []
                 print(f"{self.played_royal.name} wins royal sequence!")
+                self.pile_winner = self.played_royal
                 self.played_royal=None
+                return True
+            
+        return False
+
 
     def play_game(self):
         while len(self.players) > 1:
             if self.play_round():
+                self.log_card_count("",0)
                 if len(self.players) <= 1:
                     break
             time.sleep(0.01)  # Small delay to slow down the game for readability
