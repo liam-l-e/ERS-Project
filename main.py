@@ -20,7 +20,7 @@ class Player:
 
     def attempt_slap(self):
         if random.random() <0.8:
-            slap_time = self.reaction_time + random.uniform(0,0.1) ## Random on random pls work
+            slap_time = self.reaction_time + random.uniform(0,0.1) ## Random on random reaction time
             return slap_time
         return None
 
@@ -37,7 +37,6 @@ class Player:
         self.won_cards = []
 
 
-
 ## Representation of game logic
 class Game:
     def __init__(self,players):
@@ -46,7 +45,7 @@ class Game:
         self.pot = []
         self.create_deck()
         self.current_player_index = 0
-        self.royal_sequence = False
+        self.royal_sequence = -1
         self.cards_to_play = 0
         self.total_cards = 52
 
@@ -60,20 +59,22 @@ class Game:
         cards_per_player = len(deck) // len(self.players)
         remainder = len(deck) % len(self.players)
 
+        # deal
         for player in self.players:
             player.main_hand = [deck.pop() for _ in range(cards_per_player)]
 
         # Place remaining card(s) in the pile to start the game
         self.pile = [deck.pop() for _ in range(remainder)]
 
-        self.log_card_count("After initial deal")
+        self.log_card_count("After initial deal",1)
 
-    def log_card_count(self, message):
+    def log_card_count(self, message,n):
         print(f"\n--- {message} ---")
         total = sum(len(p.main_hand) + len(p.won_cards) for p in self.players) + len(self.pile) + len(self.pot)
-        print(f"Total cards in game: {total}")
+        if n == 1:
+            print(f"Total cards in game: {total}")
         for player in self.players:
-            print(f"{player.name}: {len(player.main_hand)} in hand, {len(player.won_cards)} won")
+            print(f"{player.name}: {len(player.main_hand)} in hand")
         print(f"Pile: {len(self.pile)}")
         assert total == 52, f"Card count mismatch! Expected {52}, found {total}"
 
@@ -89,32 +90,33 @@ class Game:
                 self.pile.append(card)
                 print(f"{player.name} plays {card}")
                 
-                self.handle_royal_sequence(player, card)
-                
                 if self.check_slap():
-                    self.royal_sequence = False
+                    self.royal_sequence = -1
                     self.cards_to_play = 0
                     return True  # Someone won the pile
                 
-                if not self.royal_sequence:
-                    self.current_player_index = (self.current_player_index + 1) % len(self.players)
+                self.handle_royal_sequence(player, card)
+                
+                if self.royal_sequence==-1:
+                    self.next_player()
             else:
-                if not player.main_hand and not player.won_cards:
+                if not player.main_hand and not player.won_cards: # Out of game logic
                     print(f"{player.name} is out of the game!")
                     self.players.pop(self.current_player_index)
                     if len(self.players) <= 1:
                         return True  # Game over
                     self.current_player_index %= len(self.players)
                 else:
+
                     self.next_player()
             
             if len(self.players) == 1:
                 return True  # Game over
             
-            if not self.royal_sequence:
+            if self.royal_sequence>=(1.0-1.0):
                 break
         
-        self.log_card_count("")
+        self.log_card_count("",0)
         return False
     
     def next_player(self):
@@ -133,7 +135,7 @@ class Game:
             if slap_attempts:
                 winner, _ = min(slap_attempts, key=lambda x: x[1])
                 winner.main_hand.extend(self.pile)
-                print(f"{winner.name} slaps and wins the pile in {_:.3f} seconds!")
+                print(f"{winner.name} slaps and wins the pile in by {self.is_slappable()} {_:.3f} seconds!")
                 self.pile = []
                 return True
 
@@ -163,24 +165,24 @@ class Game:
     
     def handle_royal_sequence(self, player, card):
         if card.rank in ['J', 'Q', 'K', 'A']:
-            self.royal_sequence = True
+            self.royal_sequence = self.current_player_index
             self.cards_to_play = self.get_cards_for_royal(card.rank)
             self.next_player()
             # print(f"{player.name} played a {card.rank}! Next player must play {self.cards_to_play} cards.")
-        elif self.royal_sequence:
+        elif self.royal_sequence!=-1: #
             self.cards_to_play -= 1
             if self.cards_to_play == 0:
-                self.royal_sequence = False
-                # print("Royal sequence completed.")
-                
+                self.players[self.royal_sequence].won_cards.extend(self.pile)
+                self.pile = []
+                print(f"{self.players[self.royal_sequence].name} wins royal sequence!")
+                self.royal_sequence=-1
 
-    
     def play_game(self):
         while len(self.players) > 1:
             if self.play_round():
                 if len(self.players) <= 1:
                     break
-            time.sleep(0.1)  # Small delay to slow down the game for readability
+            time.sleep(0.01)  # Small delay to slow down the game for readability
 
         if self.players:
             winner = self.players[0]
@@ -189,7 +191,7 @@ class Game:
         else:
             print("Game over with no winners.")
 
-        self.log_card_count("End of game")
+        self.log_card_count("End of game",1)
 
 players = [Player("Jonathan"), Player("Dylan"), Player("Liam")]
 
