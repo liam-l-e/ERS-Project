@@ -1,8 +1,6 @@
 import random
 import time
 
-#WHATS UP BABE
-
 ## Card representation with rank and suit
 class Card:
     def __init__(self,rank,suit):
