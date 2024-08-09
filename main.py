@@ -45,7 +45,7 @@ class Game:
         self.pot = []
         self.create_deck()
         self.current_player_index = 0
-        self.royal_sequence = -1
+        self.played_royal = None
         self.cards_to_play = 0
         self.total_cards = 52
 
@@ -91,13 +91,13 @@ class Game:
                 print(f"{player.name} plays {card}")
                 
                 if self.check_slap():
-                    self.royal_sequence = -1
+                    self.played_royal = None
                     self.cards_to_play = 0
                     return True  # Someone won the pile
                 
-                self.handle_royal_sequence(player, card)
+                self.handle_played_royal(player, card)
                 
-                if self.royal_sequence==-1:
+                if self.played_royal==None:
                     self.next_player()
             else:
                 if not player.main_hand and not player.won_cards: # Out of game logic
@@ -113,7 +113,7 @@ class Game:
             if len(self.players) == 1:
                 return True  # Game over
             
-            if self.royal_sequence>=(1.0-1.0):
+            if self.played_royal!= None:
                 break
         
         self.log_card_count("",0)
@@ -157,25 +157,30 @@ class Game:
                 if self.pile[-1].rank == self.pile[-3].rank:
                     return "Sandwich"
                 
+            if len(self.pile) >= 3:
+                # Check for divorce
+                if self.pile[-1].rank in['K','Q'] and self.pile[-3].rank in ['K','Q']:
+                    return "Divorce"
+                
         return False
     
     def get_cards_for_royal(self,rank):
         royal_values = {'J': 1, 'Q': 2, 'K': 3, 'A': 4}
         return royal_values.get(rank, 0)
     
-    def handle_royal_sequence(self, player, card):
+    def handle_played_royal(self, player, card):
         if card.rank in ['J', 'Q', 'K', 'A']:
-            self.royal_sequence = self.current_player_index
+            self.played_royal = player
             self.cards_to_play = self.get_cards_for_royal(card.rank)
             self.next_player()
             # print(f"{player.name} played a {card.rank}! Next player must play {self.cards_to_play} cards.")
-        elif self.royal_sequence!=-1: #
+        elif self.played_royal != None: #
             self.cards_to_play -= 1
             if self.cards_to_play == 0:
-                self.players[self.royal_sequence].won_cards.extend(self.pile)
+                self.played_royal.won_cards.extend(self.pile)
                 self.pile = []
-                print(f"{self.players[self.royal_sequence].name} wins royal sequence!")
-                self.royal_sequence=-1
+                print(f"{self.played_royal.name} wins royal sequence!")
+                self.played_royal=None
 
     def play_game(self):
         while len(self.players) > 1:
