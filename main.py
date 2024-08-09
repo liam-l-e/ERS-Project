@@ -36,6 +36,15 @@ class Player:
         self.main_hand.extend(self.won_cards)
         self.won_cards = []
 
+    def check_strategy(self,card):
+        print("No strategy")
+
+    def preslap(self):
+        preslap_time = self.reaction_time + random.uniform(0,0.1)/2
+        return preslap_time
+
+    
+
 
 ## Representation of game logic
 class Game:
@@ -87,6 +96,9 @@ class Game:
             
             player = self.players[self.current_player_index]
             card = player.play_card()
+
+            for player in self.players:
+                player.check_strategy(card)
             
             if card:
                 self.pile.append(card)
@@ -214,7 +226,27 @@ class Game:
 
         self.log_card_count("End of game",1)
 
-players = [Player("Jonathan"), Player("Dylan"), Player("Liam")]
+class Aggressive(Player):
+    def __init__(self,name):
+        super().__init__(name)
+        self.count=0
+
+
+    def check_strategy(self,card):
+        self.count+=1
+        if self.count%5==0:
+            print(f"Preslap! (every 5) {self.preslap()}")
+        else:
+            print(f"Count = {self.count}")
+        pass
+
+    
+
+    
+
+players = [Aggressive("Jonathan"), Player("Dylan"), Player("Liam")]
 
 game = Game(players)
 game.play_game()
+
+### "different inital hand states" - babe
