@@ -78,8 +78,9 @@ class Player:
     # Reaction to game event
     def react_to_event(self, event):
         # Clear queue action if there was a new pile
-        if (event.new_pile):
-            self.queued_action = None
+        if event.new_pile:
+            reaction = self.new_pile()
+            if (reaction): return reaction
         # Store event into memory
         self.event_memory(event)
         # Clear queued action from previous event
@@ -104,6 +105,11 @@ class Player:
         if (event.new_pile):
             self.memory = []
 
+    def new_pile(self):
+        self.queued_action = None
+        if (len(self.hand) <= 0):
+            return self.leave_game()
+        return None
 
     # Default slap logic
     def check_slap_logic(self, event):
@@ -128,6 +134,8 @@ class Player:
         return None
     
     def get_top_card(self):
+        if (len(self.hand) <= 0):
+            return None
         return self.hand.pop(0)
 
     # Default play logic
@@ -147,6 +155,9 @@ class Player:
         # Queue negative time for the card so its always first
         self.queued_action = GameAction("Card", self, -random.uniform(0, 1))
         return GameAction("Movement", self, self.get_reaction_time())
+    
+    def leave_game(self):
+        return GameAction("Leave", self, -1)
         
     # Start up faking card action starts movement and queues fake
     def fake_card(self):
@@ -193,6 +204,7 @@ class Game:
         self.pile_winner = None
         self.slapped = None
         self.game_event : GameEvent = None
+        self.skip_players: set[Player] = set()
 
         #Deal the cards
         self.create_deck()
@@ -223,16 +235,52 @@ class Game:
             self.current_player_index = index
         else:
             self.current_player_index = (self.current_player_index + 1) % len(self.players)
+            while (self.players[self.current_player_index] in self.skip_players):
+                self.current_player_index = (self.current_player_index + 1) % len(self.players)
     
     # Handle actions from players
     def handle_new_action(self, action: GameAction):
-        if action.action_type == "Movement":
-            self.game_event.movements.append(action.player)
-        if action.action_type == "Card":
-            card = action.player.get_top_card()
-            self.handle_new_card(action.player, card)
-        if action.action_type == "Slap":
-            self.handle_slap(action.player)
+        match action.action_type:
+            case "Movement":
+                self.game_event.movements.append(action.player)
+            case "Card":
+                card = action.player.get_top_card()
+                if (card == None):
+                    self.temp_remove_player(action.player)
+                else:
+                    self.handle_new_card(action.player, card)
+            case "Slap":
+                self.handle_slap(action.player)
+            case "Leave":
+                self.full_remove_player(action.player)
+            case _:
+                pass
+
+    def temp_remove_player(self, player):
+        print(f"{player.name} ran out of cards")
+        if self.played_royal:
+            print(f"{self.played_royal.name} wins royal sequence!")
+            self.pile_winner = self.played_royal
+            self.game_event.pile_winner = self.played_royal
+        else:
+            self.skip_players.add(player)
+            if (len(self.players) - len(self.skip_players) == 1):
+                last_player = None
+                for player in self.players:
+                    if (player not in self.skip_players):
+                        last_player = player
+                        break
+                last_player.hand.extend(self.burned)
+                last_player.hand.extend(self.pile)
+                print(f"{last_player.name} took the pile")
+                self.game_event.new_pile = True
+                self.reset_pile()
+            self.next_player()
+
+    def full_remove_player(self, player):
+        print(f"Full remove {player.name} is out of the game")
+        self.players.remove(player)
+        self.current_player_index = self.players.index(self.game_event.player_turn)
 
     # Handle a players slap
     def handle_slap(self, player):
@@ -240,6 +288,9 @@ class Game:
         # Handle when the miss slap and have to burn
         if not self.is_slappable(player):
             burned_card = player.get_top_card()
+            if (burned_card == None):
+                self.temp_remove_player(player)
+                return
             print(f"{player.name} burned the {burned_card} because they slapped the pile")
             self.burned.append(burned_card)
             self.game_event.burned.append(burned_card)
@@ -319,6 +370,7 @@ class Game:
         self.cards_to_play = 0
         self.pile_winner = None
         self.slapped = None
+        self.skip_players = set()
         self.log_card_count("Pile Taken", 0)
     
     def log_card_count(self, message,n):
@@ -368,7 +420,7 @@ class Game:
 
         if self.players:
             winner = self.players[0]
-            total_cards = len(winner.main_hand) + len(winner.won_cards)
+            total_cards = len(winner.hand)
             print(f"{winner.name} wins the game with {total_cards} cards!")
         else:
             print("Game over with no winners.")
