@@ -107,7 +107,7 @@ class Player:
 
     # Will wait this turn and slap fast on next event
     def preslap(self):
-        self.queued_action = Game("Slap", self, self.get_prediction_time())
+        self.queued_action = GameAction("Slap", self, self.get_prediction_time())
         return self.wait()
     
     # Queues both playing card and slap right after
