@@ -7,3 +7,4 @@ class GameEvent:
         self.start_to_play = []
         self.burned = []
         self.pile_winner = None
+        self.player_rotation = []

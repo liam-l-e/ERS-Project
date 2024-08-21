@@ -59,10 +59,9 @@ class Game:
                 self.game_event.movements.append(action.player)
             case "Card":
                 card = action.player.get_top_card()
-                if (card == None):
+                self.handle_new_card(action.player, card)
+                if (len(action.player.hand) == 0):
                     self.temp_remove_player(action.player)
-                else:
-                    self.handle_new_card(action.player, card)
             case "Slap":
                 self.handle_slap(action.player)
             case "Leave":
@@ -71,28 +70,33 @@ class Game:
                 pass
 
     def temp_remove_player(self, player):
-        print(f"{player.name} ran out of cards")
+        print(f"{player.name} has no more cards")
+        # If played last card during a royal sequence
+        # whoever played the royal wins that pile
         if self.played_royal:
             print(f"{self.played_royal.name} wins royal sequence!")
             self.pile_winner = self.played_royal
             self.game_event.pile_winner = self.played_royal
-        else:
-            self.skip_players.add(player)
-            if (len(self.players) - len(self.skip_players) == 1):
-                last_player = None
-                for player in self.players:
-                    if (player not in self.skip_players):
-                        last_player = player
-                        break
-                last_player.hand.extend(self.burned)
-                last_player.hand.extend(self.pile)
-                print(f"{last_player.name} took the pile")
-                self.game_event.new_pile = True
-                self.reset_pile()
-            self.next_player()
+            return
+        # If there was no royal played then that players turn is skipped
+        self.skip_players.add(player)
+        # Check if there is only 1 player left
+        if (len(self.players) - len(self.skip_players) == 1):
+            # Find the last player
+            last_player = None
+            for player in self.players:
+                if (player not in self.skip_players):
+                    last_player = player
+                    break
+            # Give the pile to the last player
+            last_player.hand.extend(self.burned)
+            last_player.hand.extend(self.pile)
+            print(f"{last_player.name} took the pile")
+            self.game_event.new_pile = True
+            self.reset_pile()
 
     def full_remove_player(self, player):
-        print(f"Full remove {player.name} is out of the game")
+        print(f"{player.name} is out of the game")
         self.players.remove(player)
         self.current_player_index = self.players.index(self.game_event.player_turn)
 
@@ -102,12 +106,11 @@ class Game:
         # Handle when the miss slap and have to burn
         if not self.is_slappable(player):
             burned_card = player.get_top_card()
-            if (burned_card == None):
-                self.temp_remove_player(player)
-                return
             print(f"{player.name} burned the {burned_card} because they slapped the pile")
             self.burned.append(burned_card)
             self.game_event.burned.append(burned_card)
+            if (len(player.hand) == 0):
+                self.temp_remove_player(player)
             return
         # Handle when they slap first
         if not self.slapped:
@@ -151,7 +154,6 @@ class Game:
                 if self.pile[-1].rank == self.pile[-3].rank:
                     return "Sandwich"
                 
-            if len(self.pile) >= 3:
                 # Check for divorce
                 if self.pile[-1].rank in['K','Q'] and self.pile[-3].rank in ['K','Q']:
                     return "Divorce"
@@ -197,8 +199,12 @@ class Game:
         print(f"Pile: {len(self.pile)}")
         assert total == 52, f"Card count mismatch! Expected {52}, found {total}"
 
+    # Main game loop
     def play_game(self):
+        # Initial game start event
         self.game_event = GameEvent(self.players[self.current_player_index])
+        # Give the players the current rotation after filtering the skipped players
+        self.game_event.player_rotation = list(filter(lambda player: player not in self.skip_players, self.players))
         # Action queue is a priority queue that dequeues with the lowest reaction time
         action_queue : PriorityQueue[GameAction] = PriorityQueue(len(self.players))
         while len(self.players) > 1:
@@ -229,6 +235,9 @@ class Game:
                 print(f"{self.slapped.name} took the pile")
                 self.game_event.new_pile = True
                 self.reset_pile()
+                
+            # Give the players the current rotation after filtering the skipped players
+            self.game_event.player_rotation = list(filter(lambda player: player not in self.skip_players, self.players))
 
         if self.players:
             winner = self.players[0]

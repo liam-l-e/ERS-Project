@@ -7,9 +7,10 @@ class Player:
     def __init__(self,  name):
         self.name = name
         self.hand = []
-        self.reaction_time = random.uniform(0.1,0.5)
+        self.reaction_time = random.uniform(0.25,0.3)
         self.queued_action = None
         self.memory = []
+        self.player_before = None
 
     # Reaction to game event
     def react_to_event(self, event):
@@ -38,6 +39,9 @@ class Player:
     def event_memory(self, event : GameEvent):
         for card in event.cards:
             self.memory.append(card)
+        for i in range(len(event.player_rotation)):
+            if (event.player_rotation[i] == self):
+                self.player_before = event.player_rotation[i-1]
         if (event.new_pile):
             self.memory = []
 
@@ -81,6 +85,8 @@ class Player:
 
     # Automatically do action queue from previous event
     def clear_action_queue(self):
+        if (callable(self.queued_action)):
+            return self.queued_action()
         if self.queued_action:
             temp_action = self.queued_action
             self.queued_action = None
@@ -112,7 +118,11 @@ class Player:
     
     # Queues both playing card and slap right after
     def play_and_preslap(self):
-        pass
+        def play_and_slap():
+            self.queued_action = GameAction("Slap", self, self.get_prediction_time())
+            return GameAction("Card", self, -random.uniform(0, 1))
+        self.queued_action = play_and_slap
+        return GameAction("Movement", self, self.get_reaction_time())
     
     # Wait for next event
     def wait(self):
@@ -120,7 +130,7 @@ class Player:
     
     # Gets normal reaction time
     def get_reaction_time(self):
-        return self.reaction_time + random.uniform(.02, .1)
+        return self.reaction_time + random.uniform(0, .5)
     
     # Gets predicted reaction time
     def get_prediction_time(self):

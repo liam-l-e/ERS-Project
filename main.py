@@ -3,7 +3,7 @@ from Players.player import Player
 from Players.never_slap import NeverSlap
 
 def main():
-    players = [Player("Jonathan"), NeverSlap("Dylan"), Player("Liam")]
+    players = [Player("Jonathan"), Player("Dylan"), Player("Liam")]
 
     game = Game(players)
     game.play_game()
