@@ -7,7 +7,7 @@ from Players.player import Player
 
 ## Representation of game logic
 class Game:
-    def __init__(self,players):
+    def __init__(self,players, print_messages=False):
         self.players: list[Player] = players
         self.pile: list[Card] = []
         self.burned: list[Card] = []
@@ -19,9 +19,13 @@ class Game:
         self.slapped = None
         self.game_event : GameEvent = None
         self.skip_players: set[Player] = set()
+        self.print_messages = print_messages
 
         #Deal the cards
         self.create_deck()
+
+    def custom_print(self, message):
+        if self.print_messages: print(message)
 
     ## Rank and suit creation
     def create_deck(self):
@@ -69,46 +73,21 @@ class Game:
             case _:
                 pass
 
-    def temp_remove_player(self, player):
-        print(f"{player.name} has no more cards")
-        # If played last card during a royal sequence
-        # whoever played the royal wins that pile
-        if self.played_royal:
-            print(f"{self.played_royal.name} wins royal sequence!")
-            self.pile_winner = self.played_royal
-            self.game_event.pile_winner = self.played_royal
-            return
-        # If there was no royal played then that players turn is skipped
-        self.skip_players.add(player)
-        # Check if there is only 1 player left
-        if (len(self.players) - len(self.skip_players) == 1):
-            # Find the last player
-            last_player = None
-            for player in self.players:
-                if (player not in self.skip_players):
-                    last_player = player
-                    break
-            # Give the pile to the last player
-            last_player.hand.extend(self.burned)
-            last_player.hand.extend(self.pile)
-            print(f"{last_player.name} took the pile")
-            self.game_event.new_pile = True
-            self.reset_pile()
-
-    def full_remove_player(self, player):
-        print(f"{player.name} is out of the game")
-        self.players.remove(player)
-        self.current_player_index = self.players.index(self.game_event.player_turn)
-
     # Handle a players slap
     def handle_slap(self, player):
-        print(f"{player.name} slapped the pile")
+        self.custom_print(f"{player.name} slapped the pile")
         # Handle when the miss slap and have to burn
         if not self.is_slappable(player):
             burned_card = player.get_top_card()
-            print(f"{player.name} burned the {burned_card} because they slapped the pile")
+            # Check if they have a card to burn
+            if (burned_card == None):
+                self.custom_print(f"{player.name} used their last slap")
+                return
+            # Burn the card
+            self.custom_print(f"{player.name} burned the {burned_card} because they slapped the pile")
             self.burned.append(burned_card)
             self.game_event.burned.append(burned_card)
+            # If they run out of cards temporarily remove them from rotation till next pile
             if (len(player.hand) == 0):
                 self.temp_remove_player(player)
             return
@@ -121,10 +100,10 @@ class Game:
 
     # Handle player playing card
     def handle_new_card(self, player, card):
-        print(f"{player.name} played the {card}")
+        self.custom_print(f"{player.name} played the {card}")
         # Check if they played out of turn then they burn
         if self.players[self.current_player_index] != player:
-            print(f"{player.name} burned the {card} because they were out of turn")
+            self.custom_print(f"{player.name} burned the {card} because they were out of turn")
             self.burned.append(card)
             self.game_event.burned.append(card)
             return
@@ -175,7 +154,7 @@ class Game:
         elif self.played_royal != None:
             self.cards_to_play -= 1
             if self.cards_to_play == 0:
-                print(f"{self.played_royal.name} wins royal sequence!")
+                self.custom_print(f"{self.played_royal.name} wins royal sequence!")
                 self.pile_winner = self.played_royal
                 self.game_event.pile_winner = self.played_royal
     
@@ -188,15 +167,56 @@ class Game:
         self.slapped = None
         self.skip_players = set()
         self.log_card_count("Pile Taken", 0)
+
+    # Temporarily remove player until the next round if they run out of cards
+    def temp_remove_player(self, player):
+        self.custom_print(f"{player.name} has no more cards")
+        # If played last card during a royal sequence
+        # whoever played the royal wins that pile
+        if self.played_royal:
+            if (self.cards_to_play != 0):
+                self.custom_print(f"{self.played_royal.name} wins royal sequence!")
+            self.pile_winner = self.played_royal
+            self.game_event.pile_winner = self.played_royal
+            return
+        # If there was no royal played then that players turn is skipped
+        self.skip_players.add(player)
+        # Check if there is only 1 player left
+        if (len(self.players) - len(self.skip_players) == 1):
+            # Find the last player
+            last_player = None
+            for player in self.players:
+                if (player not in self.skip_players):
+                    last_player = player
+                    break
+            # Give the pile to the last player
+            last_player.hand.extend(self.burned)
+            last_player.hand.extend(self.pile)
+            self.custom_print(f"{last_player.name} took the pile")
+            self.game_event.new_pile = True
+            self.current_player_index = self.players.index(last_player)
+            self.game_event.movements = []
+            self.reset_pile()
+            return
+        # If there are more players if the player removed was supposed to play
+        # Go to the next person in rotation
+        if (self.players[self.current_player_index] == player):
+            self.next_player()
+
+    # Fully remove player from rotation
+    def full_remove_player(self, player):
+        self.custom_print(f"{player.name} is out of the game")
+        self.players.remove(player)
+        self.current_player_index = self.players.index(self.game_event.player_turn)
     
     def log_card_count(self, message,n):
-        print(f"\n--- {message} ---")
+        self.custom_print(f"\n--- {message} ---")
         total = sum(len(p.hand) for p in self.players) + len(self.pile) + len(self.burned)
         if n == 1:
-            print(f"Total cards in game: {total}")
+            self.custom_print(f"Total cards in game: {total}")
         for player in self.players:
-            print(f"{player.name}: {len(player.hand)} in hand")
-        print(f"Pile: {len(self.pile)}")
+            self.custom_print(f"{player.name}: {len(player.hand)} in hand")
+        self.custom_print(f"Pile: {len(self.pile)}")
         assert total == 52, f"Card count mismatch! Expected {52}, found {total}"
 
     # Main game loop
@@ -209,7 +229,7 @@ class Game:
         action_queue : PriorityQueue[GameAction] = PriorityQueue(len(self.players))
         while len(self.players) > 1:
             # Send game event to players to get their action
-            # send event in random order to breack reaction time ties
+            # send event in random order to break reaction time ties
             for player in random.sample(self.players, len(self.players)):
                 game_action = player.react_to_event(self.game_event)
                 action_queue.put(game_action)
@@ -232,8 +252,9 @@ class Game:
                 # Let player take the pile
                 self.slapped.hand.extend(self.burned)
                 self.slapped.hand.extend(self.pile)
-                print(f"{self.slapped.name} took the pile")
+                self.custom_print(f"{self.slapped.name} took the pile")
                 self.game_event.new_pile = True
+                self.game_event.movements = []
                 self.reset_pile()
                 
             # Give the players the current rotation after filtering the skipped players
@@ -242,8 +263,9 @@ class Game:
         if self.players:
             winner = self.players[0]
             total_cards = len(winner.hand)
-            print(f"{winner.name} wins the game with {total_cards} cards!")
+            self.custom_print(f"{winner.name} wins the game with {total_cards} cards!")
         else:
-            print("Game over with no winners.")
+            self.custom_print("Game over with no winners.")
 
         self.log_card_count("End of game",1)
+        return self.players[0]

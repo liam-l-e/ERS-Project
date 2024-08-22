@@ -10,6 +10,8 @@ class Player:
         self.reaction_time = random.uniform(0.25,0.3)
         self.queued_action = None
         self.memory = []
+        self.royal_sequence = False
+        self.can_slap = True
         self.player_before = None
 
     # Reaction to game event
@@ -26,12 +28,19 @@ class Player:
         # Check if you are the pile winner
         if (event.pile_winner == self):
             return self.slap()
-        # Check slapping logic
-        reaction = self.check_slap_logic(event)
-        if (reaction): return reaction
-        # Check playing logic
-        reaction = self.check_play_logic(event)
-        if (reaction): return reaction
+        # If they have cards left to burn or they have their last slap
+        if (len(self.hand) >= 0 or self.can_slap):
+            # Check slapping logic
+            reaction = self.check_slap_logic(event)
+            if (reaction):
+                # No cards to burn use last slap
+                if (len(self.hand) == 0):
+                    self.can_slap = False
+                return reaction
+        # Check playing logic if the player has cards
+        if (len(self.hand) > 0):
+            reaction = self.check_play_logic(event)
+            if (reaction): return reaction
         # Else just wait
         return self.wait()
     
@@ -39,16 +48,24 @@ class Player:
     def event_memory(self, event : GameEvent):
         for card in event.cards:
             self.memory.append(card)
+            if (card.rank in ["J", "Q", "K", "A"]):
+                self.royal_sequence = True
         for i in range(len(event.player_rotation)):
             if (event.player_rotation[i] == self):
                 self.player_before = event.player_rotation[i-1]
         if (event.new_pile):
+            self.royal_sequence = False
             self.memory = []
 
+    # Tell the player there is a new pile
     def new_pile(self):
+        # Removed queued actions
         self.queued_action = None
+        # Fully leave the game if they have no caurds
         if (len(self.hand) <= 0):
             return self.leave_game()
+        else:
+            self.can_slap = True
         return None
 
     # Default slap logic
@@ -73,6 +90,8 @@ class Player:
                     return self.slap()
         return None
     
+    # Get the top card of their hand
+    # If they have none return None
     def get_top_card(self):
         if (len(self.hand) <= 0):
             return None
@@ -94,8 +113,8 @@ class Player:
     
     # Start up playing card action starts movement and queues card
     def play_card(self):
-        # Queue negative time for the card so its always first
-        self.queued_action = GameAction("Card", self, -random.uniform(0, 1))
+        # Queue card for next event
+        self.queued_action = GameAction("Card", self, self.get_prediction_time())
         return GameAction("Movement", self, self.get_reaction_time())
     
     def leave_game(self):
@@ -103,8 +122,8 @@ class Player:
         
     # Start up faking card action starts movement and queues fake
     def fake_card(self):
-        # Queue negative time for the fake so its always first
-        self.queued_action = GameAction("Fake", self, -random.uniform(0, 1))
+        # Queue fake for next event
+        self.queued_action = GameAction("Fake", self, self.get_prediction_time())
         return GameAction("Movement", self, self.get_reaction_time())
         
     # Slaps the pile on reaction
