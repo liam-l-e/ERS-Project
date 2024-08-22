@@ -20,6 +20,7 @@ class Game:
         self.game_event : GameEvent = None
         self.skip_players: set[Player] = set()
         self.print_messages = print_messages
+        self.waited_turns = 0
 
         #Deal the cards
         self.create_deck()
@@ -48,6 +49,7 @@ class Game:
     
     # Increments player turn
     def next_player(self):
+        self.waited_turns = 0
         if self.pile_winner:
             index = self.players.index(self.pile_winner)
             self.current_player_index = index
@@ -70,6 +72,10 @@ class Game:
                 self.handle_slap(action.player)
             case "Leave":
                 self.full_remove_player(action.player)
+            case "Wait":
+                self.handle_fake_and_wait(False, action)
+            case "Fake":
+                self.handle_fake_and_wait(True, action)
             case _:
                 pass
 
@@ -84,9 +90,7 @@ class Game:
                 self.custom_print(f"{player.name} used their last slap")
                 return
             # Burn the card
-            self.custom_print(f"{player.name} burned the {burned_card} because they slapped the pile")
-            self.burned.append(burned_card)
-            self.game_event.burned.append(burned_card)
+            self.burn_card(player, burned_card, "because they slapped the pile")
             # If they run out of cards temporarily remove them from rotation till next pile
             if (len(player.hand) == 0):
                 self.temp_remove_player(player)
@@ -103,9 +107,7 @@ class Game:
         self.custom_print(f"{player.name} played the {card}")
         # Check if they played out of turn then they burn
         if self.players[self.current_player_index] != player:
-            self.custom_print(f"{player.name} burned the {card} because they were out of turn")
-            self.burned.append(card)
-            self.game_event.burned.append(card)
+            self.burn_card(player, card, "because they played out of turn")
             return
         # Handle when they play in turn
         self.pile.append(card)
@@ -116,6 +118,28 @@ class Game:
         # Increment turn
         if not self.played_royal:
             self.next_player()
+
+    def handle_fake_and_wait(self, is_fake, action):
+        if (is_fake):
+            self.custom_print(f"")
+        # Count number of times waited 
+        if (action.player == self.game_event.player_turn):
+            self.waited_turns += 1
+            # Burn card if they waited for more than 3 turns
+            if (self.waited_turns > 3):
+                # Check they have a card to burn
+                if (len(action.player.hand) <= 0):
+                    return
+                self.burn_card(action.player, action.player.get_top_card(), "because they waited for more than 3 turns")
+                # If they run out of cards temporarily remove them from rotation till next pile
+                if (len(action.player.hand) == 0):
+                    self.temp_remove_player(action.player)
+
+    # Send burned card message and add card to game event and burn pile
+    def burn_card(self, player, card, message):
+        self.custom_print(f"{player.name} burned the {card} {message}")
+        self.burned.append(card)
+        self.game_event.burned.append(card)
 
     ## Slap logic (doubles, sandwiches, marriages)
     def is_slappable(self, player):
@@ -166,6 +190,7 @@ class Game:
         self.pile_winner = None
         self.slapped = None
         self.skip_players = set()
+        self.waited_turns = 0
         self.log_card_count("Pile Taken", 0)
 
     # Temporarily remove player until the next round if they run out of cards
